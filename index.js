@@ -58,6 +58,7 @@ async function run() {
     const coursesCollection = client.db("summer-camp").collection("courses");
     const reviewCollection = client.db("summer-camp").collection("reviews");
     const cartCollection = client.db("summer-camp").collection("carts");
+    const paymentCollection = client.db("summer-camp").collection("payment");
 
     // jwt token
 
@@ -205,7 +206,6 @@ async function run() {
       res.send(result);
     });
 
-
     app.patch("/allCourses/approved/:id", async (req, res) => {
       const id = req.params.id;
       // console.log(id);
@@ -259,6 +259,45 @@ async function run() {
       const item = req.body;
       const result = await coursesCollection.insertOne(item);
       // use classCollection
+      res.send(result);
+    });
+
+    // payment work api==============================================
+
+    // card payment ---
+    // create payment intent
+    app.post("/create-payment-intent", verifyJWT, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      // console.log(price,amount);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    // payment related api
+    app.post("/payments", verifyJWT, async (req, res) => {
+      const payment = req.body;
+      const insertResult = await paymentCollection.insertOne(payment);
+
+      const query = {
+        _id: { $in: payment.cartItems.map((id) => new ObjectId(id)) },
+      };
+      const deleteResult = await cartCollection.deleteOne(query);
+
+      res.send({ insertResult, deleteResult });
+    });
+
+    app.get("/payments", async (req, res) => {
+      const email = req.query.email; // Use req.query instead of req.body for GET requests
+      const query = { email: email };
+      const result = await paymentCollection.find(query).toArray();
       res.send(result);
     });
 
