@@ -289,9 +289,20 @@ async function run() {
       const query = {
         _id: { $in: payment.cartItems.map((id) => new ObjectId(id)) },
       };
+      const querySeat = {
+        _id: new ObjectId(req.body.id),
+      };
+      console.log(querySeat);
+      const updateDoc = {
+        $inc: {
+          availableSeats: -1,
+          enrolled: 1,
+        },
+      };
+      const updateSeat= await coursesCollection.updateOne(querySeat, updateDoc)
       const deleteResult = await cartCollection.deleteOne(query);
 
-      res.send({ insertResult, deleteResult });
+      res.send({ insertResult, deleteResult, updateSeat });
     });
 
     app.get("/payments", async (req, res) => {
