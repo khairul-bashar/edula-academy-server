@@ -36,10 +36,6 @@ const verifyJWT = (req, res, next) => {
   });
 };
 
-
-
-
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ro7xucx.mongodb.net/?retryWrites=true&w=majority`;
 
 const client = new MongoClient(uri, {
@@ -74,49 +70,50 @@ async function run() {
       res.send({ token });
     });
 
-    // verify admin
-    // Warning: use verifyJWT before using verifyAdmin
-    const verifyAdmin = async (req, res, next) => {
+    //verify admin or instructor
+    const verifyAdminOrInstructor = async (req, res, next) => {
       const email = req.decoded.email;
+
       const query = { email: email };
       const user = await userCollection.findOne(query);
-      if (user?.role !== "admin") {
+
+      if (user?.role !== "admin" && user?.role !== "instructor") {
+        console.log("failed");
         return res
           .status(403)
-          .send({ error: true, message: "forbidden message" });
+          .send({ error: true, message: "forbidden access" });
       }
+      // console.log("pass,role", user?.role);
       next();
     };
-
-    // verify Instructor  ---
-    const verifyInstructor = async (req, res, next) => {
-      const email = req.decoded.email;
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      if (user?.role !== "instructor") {
-        return res
-          .status(403)
-          .send({ error: true, message: "forbidden message" });
-      }
-      next();
-    };
-
-    // get user data
+    //normal user routes
     app.get("/users", verifyJWT, async (req, res) => {
-      const result = await userCollection.find().toArray();
-      res.send(result);
+      const users = await userCollection.find().toArray();
+      res.send(users);
+    });
+
+    //for check user role
+    app.get("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await userCollection.findOne({ email: email });
+
+      res.send(user);
     });
 
     // delete user
 
-    // delete an item
-    app.delete("/user/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await userCollection.deleteOne(query);
-      res.send(result);
-    });
+    app.delete(
+      "/users/:id",
+      verifyJWT,
+      verifyAdminOrInstructor,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const deletedUser = await userCollection.deleteOne(query);
 
+        res.send(deletedUser);
+      }
+    );
     // save user data
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -129,9 +126,39 @@ async function run() {
       res.send(result);
     });
 
-   
+    app.patch(
+      "/users/:id",
+      verifyJWT,
+      verifyAdminOrInstructor,
+      async (req, res) => {
+        const role = req.body.role;
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            role: role,
+          },
+        };
+        const updatedUser = await userCollection.updateOne(query, updateDoc);
 
-    // courses routes ===========================
+        res.send(updatedUser);
+      }
+    );
+
+    app.delete(
+      "/users/:id",
+      verifyJWT,
+      verifyAdminOrInstructor,
+      async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const deletedUser = await userCollection.deleteOne(query);
+
+        res.send(deletedUser);
+      }
+    );
+
+    // ====================== courses routes ===========================
     app.get("/courses", async (req, res) => {
       const courses = await coursesCollection.find().toArray();
       res.send(courses);
