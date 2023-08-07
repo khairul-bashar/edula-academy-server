@@ -252,7 +252,7 @@ async function run() {
       res.send(reviews);
     });
 
-    // Instructor Work
+    // Instructor Work ================
     app.post("/instructorClasses", async (req, res) => {
       const item = req.body;
       const result = await coursesCollection.insertOne(item);
