@@ -70,7 +70,7 @@ async function run() {
       res.send({ token });
     });
 
-    //verify admin or instructor
+    //verify admin or instructor ===============
     const verifyAdminOrInstructor = async (req, res, next) => {
       const email = req.decoded.email;
 
