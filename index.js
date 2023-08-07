@@ -203,7 +203,7 @@ async function run() {
       }
     });
 
-    // ===================enroll related route=============
+    // ===================enroll related route========
     app.get("/enrolled", verifyJWT, async (req, res) => {
       const email = req.query.email;
 
