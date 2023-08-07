@@ -57,7 +57,9 @@ async function run() {
     const userCollection = client.db("summer-camp").collection("users");
     const coursesCollection = client.db("summer-camp").collection("courses");
     const reviewCollection = client.db("summer-camp").collection("reviews");
-    const cartCollection = client.db("summer-camp").collection("carts");
+    const enrollClassCollection = client
+      .db("summer-camp")
+      .collection("enrollClass");
     const paymentCollection = client.db("summer-camp").collection("payment");
 
     // jwt token
@@ -127,72 +129,7 @@ async function run() {
       res.send(result);
     });
 
-    // check admin or not by jwt
-    app.get("/users/admin/:email", verifyJWT, async (req, res) => {
-      const email = req.params.email;
-
-      if (req.decoded.email !== email) {
-        res.send({ admin: false });
-      }
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      const result = { admin: user?.role === "admin" };
-      res.send(result);
-    });
-
-    // check admin
-    app.get("/users/instructor/:email", verifyJWT, async (req, res) => {
-      const email = req.params.email;
-
-      if (req.decoded.email !== email) {
-        res.send({ instructor: false });
-      }
-      const query = { email: email };
-      const user = await userCollection.findOne(query);
-      const result = { instructor: user?.role === "instructor" };
-      res.send(result);
-    });
-
-    // make admin
-    app.patch("/users/admin/:id", async (req, res) => {
-      const id = req.params.id;
-      // console.log(id);
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
-
-    // make instructor
-    app.patch("/users/instructor/:id", async (req, res) => {
-      const id = req.params.id;
-      // console.log(id);
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          role: "instructor",
-        },
-      };
-
-      const result = await userCollection.updateOne(filter, updateDoc);
-      res.send(result);
-    });
-
-    // Instructor Collection
-
-    // instructors collections --get it
-    app.get("/instructors", async (req, res) => {
-      const role = "instructor";
-
-      const result = await userCollection.find({ role }).toArray();
-
-      res.send(result);
-    });
+   
 
     // courses routes ===========================
     app.get("/courses", async (req, res) => {
@@ -220,32 +157,49 @@ async function run() {
       res.send(result);
     });
 
-    // cart collection apis
-    app.get("/carts", verifyJWT, async (req, res) => {
+    //enroll related route
+    app.get("/enrolled", verifyJWT, async (req, res) => {
       const email = req.query.email;
 
-      if (!email) {
-        res.send([]);
+      // console.log(req.decoded);
+
+      if (email) {
+        const classes = await enrollClassCollection
+          .find({ email: email })
+          .toArray();
+        res.send(classes);
+      } else {
+        const classes = await enrollClassCollection.find().toArray();
+        res.send(classes);
       }
-
-      const query = { email: email };
-      const result = await cartCollection.find(query).toArray();
-      res.send(result);
     });
 
-    app.post("/carts", async (req, res) => {
-      const item = req.body;
-      const result = await cartCollection.insertOne(item);
-      res.send(result);
-    });
-
-    // delete cart
-
-    app.delete("/carts/:id", async (req, res) => {
+    app.put("/enrolled/:id", verifyJWT, async (req, res) => {
       const id = req.params.id;
+      const classes = req.body;
       const query = { _id: new ObjectId(id) };
-      const result = await cartCollection.deleteOne(query);
-      res.send(result);
+      const options = { upsert: true };
+
+      const updateDoc = {
+        $set: classes,
+      };
+
+      const enrolled = await enrollClassCollection.updateOne(
+        query,
+        updateDoc,
+        options
+      );
+
+      res.send(enrolled);
+    });
+
+    app.delete("/enrolled/:id", verifyJWT, async (req, res) => {
+      const id = req.params.id;
+      const deletedDoc = await enrollClassCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.send(deletedDoc);
     });
 
     // reviews
@@ -264,12 +218,20 @@ async function run() {
 
     // payment work api==============================================
 
-    // card payment ---
-    // create payment intent
+    //payment
+    app.get("/payment/:email", verifyJWT, async (req, res) => {
+      const email = req.params.email;
+      const paymentDetail = await paymentCollection
+        .find({ email: email })
+        .toArray();
+
+      res.send(paymentDetail);
+    });
+
     app.post("/create-payment-intent", verifyJWT, async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
-      // console.log(price,amount);
+      // console.log(amount);
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
         currency: "usd",
@@ -281,35 +243,32 @@ async function run() {
       });
     });
 
-    // payment related api
-    app.post("/payments", verifyJWT, async (req, res) => {
-      const payment = req.body;
-      const insertResult = await paymentCollection.insertOne(payment);
+    app.post("/payment", verifyJWT, async (req, res) => {
+      const paymentDetail = req.body;
+      const userId = paymentDetail.userId;
+      const classId = paymentDetail.classId;
 
-      const query = {
-        _id: { $in: payment.cartItems.map((id) => new ObjectId(id)) },
-      };
-      const querySeat = {
-        _id: new ObjectId(req.body.id),
-      };
-      console.log(querySeat);
+      const updateQuery = { _id: new ObjectId(classId) };
+
       const updateDoc = {
         $inc: {
           availableSeats: -1,
           enrolled: 1,
         },
       };
-      const updateSeat= await coursesCollection.updateOne(querySeat, updateDoc)
-      const deleteResult = await cartCollection.deleteOne(query);
 
-      res.send({ insertResult, deleteResult, updateSeat });
-    });
+      const insertedResult = await paymentCollection.insertOne(paymentDetail);
 
-    app.get("/payments", async (req, res) => {
-      const email = req.query.email; // Use req.query instead of req.body for GET requests
-      const query = { email: email };
-      const result = await paymentCollection.find(query).toArray();
-      res.send(result);
+      const updateResult = await coursesCollection.updateOne(
+        updateQuery,
+        updateDoc
+      );
+
+      const deleteResult = await enrollClassCollection.deleteOne({
+        _id: new ObjectId(userId),
+      });
+
+      res.send({ insertedResult, updateResult, deleteResult });
     });
 
     // Send a ping to confirm a successful connection
