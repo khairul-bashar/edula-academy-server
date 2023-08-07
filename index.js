@@ -184,11 +184,9 @@ async function run() {
       res.send(result);
     });
 
-    //enroll related route
+    // ===================enroll related route=============
     app.get("/enrolled", verifyJWT, async (req, res) => {
       const email = req.query.email;
-
-      // console.log(req.decoded);
 
       if (email) {
         const classes = await enrollClassCollection
