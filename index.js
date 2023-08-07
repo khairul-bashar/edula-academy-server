@@ -58,7 +58,7 @@ async function run() {
       .collection("enrollClass");
     const paymentCollection = client.db("summer-camp").collection("payment");
 
-    // jwt token
+    // jwt token =============
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
