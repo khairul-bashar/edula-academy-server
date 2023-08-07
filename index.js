@@ -184,6 +184,25 @@ async function run() {
       res.send(result);
     });
 
+    app.delete("/courses/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const deletedUser = await coursesCollection.deleteOne(query);
+
+      res.send(deletedUser);
+    });
+
+    app.get("/instructor", verifyJWT, async (req, res) => {
+      const email = req.query.email;
+
+      if (email) {
+        const classes = await coursesCollection
+          .find({ author_email: email })
+          .toArray();
+        res.send(classes);
+      }
+    });
+
     // ===================enroll related route=============
     app.get("/enrolled", verifyJWT, async (req, res) => {
       const email = req.query.email;
